@@ -1,0 +1,875 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GCAM · Gemini CLI Account Manager</title>
+  <style>
+    /* ─── tokens — Neutral Modern ───────────────────────────────────── */
+    :root {
+      --bg: #fafafa;
+      --surface: #ffffff;
+      --fg: #111111;
+      --muted: #6b6b6b;
+      --border: #e5e5e5;
+      --accent: #2f6feb;
+      --accent-on: #ffffff;
+      --success: #17a34a;
+      --warn: #eab308;
+      --danger: #dc2626;
+      --font-display: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-body: 'Inter', -apple-system, system-ui, sans-serif;
+      --font-mono: ui-monospace, 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+      --fs-h1: clamp(40px, 5.5vw, 68px);
+      --fs-h2: clamp(28px, 3.5vw, 40px);
+      --fs-h3: 20px;
+      --fs-lead: 18px;
+      --fs-body: 16px;
+      --fs-meta: 13px;
+      --gap-xs: 8px;
+      --gap-sm: 12px;
+      --gap-md: 20px;
+      --gap-lg: 32px;
+      --gap-xl: 56px;
+      --gap-2xl: 96px;
+      --container: 1120px;
+      --gutter: 32px;
+      --radius: 8px;
+      --radius-lg: 14px;
+    }
+
+    /* ─── reset & base ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: var(--fs-body);
+      line-height: 1.6;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+    }
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; cursor: pointer; }
+    p { text-wrap: pretty; }
+    h1, h2, h3, h4 { text-wrap: balance; }
+
+    /* ─── layout primitives ─────────────────────────────────────────── */
+    .container {
+      max-width: var(--container);
+      margin-inline: auto;
+      padding-inline: var(--gutter);
+    }
+    .section {
+      padding-block: clamp(56px, 8vw, var(--gap-2xl));
+      position: relative;
+    }
+    .section::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border), transparent);
+    }
+    .stack { display: flex; flex-direction: column; }
+    .stack > * + * { margin-top: var(--gap-md); }
+    .row { display: flex; align-items: center; gap: var(--gap-md); }
+    .row-between { display: flex; align-items: center; justify-content: space-between; gap: var(--gap-md); }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--gap-lg); }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--gap-lg); }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gap-md); }
+    .grid-2-1 { display: grid; grid-template-columns: 2fr 1fr; gap: var(--gap-xl); align-items: start; }
+    .grid-1-2 { display: grid; grid-template-columns: 1fr 2fr; gap: var(--gap-xl); align-items: start; }
+    @media (max-width: 920px) {
+      .grid-2, .grid-3, .grid-4, .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
+    }
+
+    /* ─── type ─────────────────────────────────────────────────────── */
+    .h1, h1 { font-family: var(--font-display); font-size: var(--fs-h1); line-height: 1.05; letter-spacing: -0.025em; margin: 0; font-weight: 700; }
+    .h2, h2 { font-family: var(--font-display); font-size: var(--fs-h2); line-height: 1.15; letter-spacing: -0.02em; margin: 0; font-weight: 600; }
+    .h3, h3 { font-size: var(--fs-h3); font-weight: 600; line-height: 1.35; letter-spacing: -0.01em; margin: 0; }
+    .lead   { font-size: var(--fs-lead); line-height: 1.6; color: var(--muted); max-width: 58ch; margin: 0; }
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 0 0 var(--gap-md);
+    }
+    .meta { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--muted); }
+    .num  { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    /* ─── chrome: nav + footer ──────────────────────────────────────── */
+    .topnav {
+      position: sticky; top: 0; z-index: 10;
+      background: rgba(250, 250, 250, 0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topnav-inner { display: flex; align-items: center; justify-content: space-between; padding-block: 14px; }
+    .topnav .logo { font-family: var(--font-mono); font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
+    .topnav nav { display: flex; gap: var(--gap-lg); }
+    .topnav nav a { font-size: 14px; color: var(--muted); transition: color 0.2s ease; }
+    .topnav nav a:hover { color: var(--fg); }
+    .topnav-right { display: flex; align-items: center; gap: 12px; }
+    .lang-switch {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 13px;
+      color: var(--muted);
+      transition: all 0.15s ease;
+      text-decoration: none;
+    }
+    .lang-switch:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .lang-switch svg { width: 14px; height: 14px; }
+    .pagefoot { padding-block: 24px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+    .pagefoot .row-between { flex-wrap: wrap; gap: var(--gap-md); }
+
+    /* ─── buttons ───────────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 20px;
+      border-radius: var(--radius);
+      border: 1px solid transparent;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: -0.005em;
+      transition: all 0.15s ease;
+      cursor: pointer;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: var(--accent-on); border-color: var(--accent); }
+    .btn-primary:hover { background: color-mix(in oklch, var(--accent) 85%, black); box-shadow: 0 4px 16px color-mix(in oklch, var(--accent) 40%, transparent); }
+    .btn-secondary { background: transparent; color: var(--fg); border-color: var(--border); }
+    .btn-secondary:hover { border-color: var(--fg); }
+    .btn-ghost { background: transparent; color: var(--fg); border-color: transparent; padding-inline: 8px; }
+    .btn-ghost:hover { color: var(--accent); }
+    .btn-arrow::after { content: '→'; transition: transform 0.15s ease; }
+    .btn-arrow:hover::after { transform: translateX(4px); }
+
+    /* ─── card / surface ────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .card:hover {
+      box-shadow: 0 8px 32px color-mix(in oklch, var(--fg) 6%, transparent);
+      border-color: color-mix(in oklch, var(--fg) 15%, transparent);
+    }
+    .card-flat { background: transparent; border: 0; padding: 0; }
+    .card-dark {
+      background: #0f0f0f;
+      border: 1px solid #2a2a2a;
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      color: #e5e5e5;
+    }
+
+    /* ─── feature cell ─────────────────────────────────────────────── */
+    .feature {
+      padding: 28px;
+      border-radius: var(--radius-lg);
+      border: 1px solid transparent;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), color-mix(in oklch, var(--accent) 50%, transparent));
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .feature:hover {
+      background: var(--surface);
+      border-color: var(--border);
+      box-shadow: 0 4px 20px color-mix(in oklch, var(--fg) 4%, transparent);
+    }
+    .feature:hover::before { opacity: 1; }
+    .feature .feature-mark {
+      width: 44px; height: 44px;
+      display: grid; place-items: center;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--accent);
+      margin-bottom: var(--gap-md);
+      background: color-mix(in oklch, var(--accent) 6%, transparent);
+      transition: all 0.2s ease;
+    }
+    .feature:hover .feature-mark {
+      background: color-mix(in oklch, var(--accent) 12%, transparent);
+      border-color: color-mix(in oklch, var(--accent) 30%, transparent);
+    }
+    .feature .feature-mark svg { width: 22px; height: 22px; }
+    .feature h3 { margin-bottom: 8px; }
+    .feature p  { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+
+    /* ─── stat ─────────────────────────────────────────────────────── */
+    .stat {
+      text-align: center;
+      padding: 32px 16px;
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      transition: all 0.2s ease;
+    }
+    .stat:hover {
+      border-color: color-mix(in oklch, var(--accent) 40%, var(--border));
+      box-shadow: 0 4px 24px color-mix(in oklch, var(--accent) 8%, transparent);
+    }
+    .stat .stat-num {
+      font-family: var(--font-display);
+      font-size: clamp(48px, 7vw, 80px);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .stat .stat-label { color: var(--muted); font-size: 14px; margin-top: 10px; max-width: 26ch; margin-inline: auto; }
+    .stat .stat-unit  { font-size: 0.45em; opacity: 0.7; margin-left: 3px; }
+
+    /* ─── terminal block ───────────────────────────────────────────── */
+    .terminal {
+      background: #0a0a0a;
+      border: 1px solid #1a1a1a;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      box-shadow: 0 20px 60px color-mix(in oklch, #000 50%, transparent), 0 8px 24px color-mix(in oklch, #000 30%, transparent);
+      position: relative;
+    }
+    .terminal::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: radial-gradient(ellipse at top, color-mix(in oklch, var(--accent) 3%, transparent), transparent 60%);
+      pointer-events: none;
+    }
+    .terminal-bar {
+      background: linear-gradient(180deg, #1a1a1a 0%, #141414 100%);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid #222;
+    }
+    .terminal-dot {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      transition: transform 0.15s ease;
+    }
+    .terminal-dot.red { background: #ff5f56; }
+    .terminal-dot.yellow { background: #ffbd2e; }
+    .terminal-dot.green { background: #27c93f; }
+    .terminal-dot:hover { transform: scale(1.2); }
+    .terminal-title {
+      color: #666;
+      font-size: 12px;
+      margin-left: 8px;
+    }
+    .terminal-body {
+      padding: 24px 28px;
+      color: #e5e5e5;
+      line-height: 1.7;
+      position: relative;
+    }
+    .terminal-line { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 4px; }
+    .terminal-prompt { color: #27c93f; user-select: none; }
+    .terminal-command { color: #e5e5e5; }
+    .terminal-output { color: #888; margin: 8px 0 20px; padding-left: 24px; }
+    .terminal-output .account-line { display: flex; gap: 12px; margin-bottom: 2px; }
+    .terminal-output .account-marker { color: var(--accent); width: 24px; }
+    .terminal-output .account-email { color: #e5e5e5; }
+    .terminal-output .account-status { color: #27c93f; }
+
+    /* ─── cursor blink ─────────────────────────────────────────────── */
+    .cursor {
+      display: inline-block;
+      width: 8px;
+      height: 16px;
+      background: var(--accent);
+      margin-left: 2px;
+      animation: blink 1s step-end infinite;
+      vertical-align: text-bottom;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    /* ─── pill / badge / tag ────────────────────────────────────────── */
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 12px;
+      background: color-mix(in oklch, var(--accent) 10%, transparent);
+      color: var(--accent);
+      border: 1px solid color-mix(in oklch, var(--accent) 25%, transparent);
+      border-radius: 999px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .tag {
+      display: inline-flex; align-items: center;
+      padding: 4px 10px;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+    }
+
+    /* ─── table ─────────────────────────────────────────────────────── */
+    .ds-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .ds-table th, .ds-table td { padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); }
+    .ds-table th { color: var(--muted); font-weight: 500; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .ds-table tbody tr { transition: background 0.15s ease; }
+    .ds-table tbody tr:hover { background: color-mix(in oklch, var(--fg) 2%, transparent); }
+    .ds-table .cmd { font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+    .ds-table .desc { color: var(--muted); }
+
+    /* ─── divider ───────────────────────────────────────────────────── */
+    .rule  { border: 0; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ─── hero ─────────────────────────────────────────────────────── */
+    .hero          { padding-block: clamp(80px, 12vw, 140px); text-align: center; }
+    .hero-center   { text-align: center; }
+    .hero-center .lead { margin-inline: auto; }
+    .hero h1       { margin-bottom: var(--gap-md); }
+    .hero .lead    { margin-bottom: var(--gap-lg); }
+    .hero-cta      { display: inline-flex; gap: var(--gap-sm); flex-wrap: wrap; justify-content: center; }
+    .hero-badge { display: inline-flex; align-items: center; gap: 8px; margin-bottom: var(--gap-lg); }
+    .hero-badge .badge-dot {
+      width: 8px; height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(0.9); }
+    }
+
+    /* ─── hero decoration ─────────────────────────────────────────── */
+    .hero-decoration {
+      position: absolute;
+      pointer-events: none;
+      user-select: none;
+    }
+    .hero-decoration.circle-1 {
+      width: 400px;
+      height: 400px;
+      border: 1px solid color-mix(in oklch, var(--accent) 15%, transparent);
+      border-radius: 50%;
+      top: 10%;
+      right: -100px;
+      opacity: 0.5;
+    }
+    .hero-decoration.circle-2 {
+      width: 300px;
+      height: 300px;
+      border: 1px solid color-mix(in oklch, var(--accent) 10%, transparent);
+      border-radius: 50%;
+      top: 20%;
+      right: -50px;
+      opacity: 0.3;
+    }
+    .hero-decoration.grid {
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 60px 60px;
+      opacity: 0.3;
+      mask-image: radial-gradient(ellipse at top, black 0%, transparent 70%);
+      -webkit-mask-image: radial-gradient(ellipse at top, black 0%, transparent 70%);
+    }
+
+    /* ─── code block ───────────────────────────────────────────────── */
+    .code-block {
+      background: linear-gradient(135deg, #0a0a0a 0%, #0f0f0f 100%);
+      border: 1px solid #1a1a1a;
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #e5e5e5;
+      line-height: 1.7;
+      overflow-x: auto;
+      position: relative;
+      box-shadow: 0 8px 32px color-mix(in oklch, #000 40%, transparent);
+    }
+    .code-block::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, color-mix(in oklch, var(--accent) 30%, transparent), transparent);
+    }
+    .code-block .comment { color: #6a737d; }
+    .code-block .cmd { color: #27c93f; }
+    .code-block .flag { color: #79b8ff; }
+    .code-block .string { color: #9ecbff; }
+
+    /* ─── steps ────────────────────────────────────────────────────── */
+    .step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px;
+      border-radius: var(--radius);
+      transition: background 0.15s ease;
+    }
+    .step:hover { background: color-mix(in oklch, var(--fg) 2%, transparent); }
+    .step-num {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: var(--accent-on);
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .step-content h4 { font-size: 15px; margin-bottom: 4px; }
+    .step-content p { color: var(--muted); font-size: 14px; margin: 0; }
+
+    /* ─── scroll reveal ─────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.6s ease, transform 0.6s ease;
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ─── gradient text ─────────────────────────────────────────────── */
+    .gradient-text {
+      background: linear-gradient(135deg, var(--fg) 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ─── floating badges ───────────────────────────────────────────── */
+    .floating-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      font-size: 12px;
+      color: var(--muted);
+      box-shadow: 0 2px 8px color-mix(in oklch, #000 5%, transparent);
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-4px); }
+    }
+    .floating-badge:nth-child(2) { animation-delay: -1s; }
+    .floating-badge:nth-child(3) { animation-delay: -2s; }
+  </style>
+</head>
+<body>
+  <header class="topnav" data-od-id="topnav">
+    <div class="container topnav-inner">
+      <span class="logo">gcam</span>
+      <nav>
+        <a href="#features">Features</a>
+        <a href="#commands">Commands</a>
+        <a href="#install">Install</a>
+      </nav>
+      <div class="topnav-right">
+        <a href="zh.html" class="lang-switch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          中文
+        </a>
+        <a href="https://github.com/dong4j/gemini-cli-account-manager" class="btn btn-primary" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="content">
+    <!-- Hero -->
+    <section class="section hero" data-od-id="hero" style="overflow: hidden;">
+      <div class="hero-decoration grid"></div>
+      <div class="hero-decoration circle-1"></div>
+      <div class="hero-decoration circle-2"></div>
+      <div class="container hero-center" style="position: relative; z-index: 1;">
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          <span class="pill">Go · Cross-Platform · Zero Dependencies</span>
+        </div>
+        <h1>Never hit a Gemini<br/><span class="gradient-text">quota wall</span> again.</h1>
+        <p class="lead" style="margin-top: 24px;">Manage multiple Gemini CLI accounts with instant switching, automatic quota rotation, and a unified account pool — all in one lightweight Go binary.</p>
+        <div class="hero-cta" style="margin-top: 40px;">
+          <a href="#install" class="btn btn-primary btn-arrow">Get Started</a>
+          <a href="#commands" class="btn btn-secondary btn-arrow">View Commands</a>
+        </div>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 32px;">
+          <span class="floating-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            Zero Config
+          </span>
+          <span class="floating-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Atomic Operations
+          </span>
+          <span class="floating-badge">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Auto Rotation
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Terminal Demo -->
+    <section class="section" data-od-id="terminal-demo">
+      <div class="container">
+        <div style="max-width: 40ch; margin: 0 auto var(--gap-xl); text-align: center;">
+          <p class="eyebrow">Demo</p>
+          <h2>See it in action.</h2>
+          <p class="lead" style="margin-top: 12px;">Switch accounts instantly with a single command.</p>
+        </div>
+        <div class="terminal">
+          <div class="terminal-bar">
+            <span class="terminal-dot red"></span>
+            <span class="terminal-dot yellow"></span>
+            <span class="terminal-dot green"></span>
+            <span class="terminal-title">gcam — zsh</span>
+            <div style="margin-left: auto; display: flex; gap: 8px; align-items: center;">
+              <span style="color: #444; font-size: 11px;">⌘K</span>
+            </div>
+          </div>
+          <div class="terminal-body">
+            <div class="terminal-line">
+              <span class="terminal-prompt">~/dev</span>
+              <span class="terminal-command">gcam</span>
+              <span class="cursor"></span>
+            </div>
+            <div class="terminal-output">
+              <p style="color: #888; margin: 0 0 12px;">Gemini CLI Account Manager</p>
+              <p style="margin: 0 0 8px;"><span style="color: #888;">Active Account:</span> <span style="color: #e5e5e5;">alice@gmail.com</span> <span style="color: #27c93f;">●</span></p>
+              <p style="color: #888; margin: 0 0 12px;">Accounts in Pool:</p>
+              <div class="account-line"><span class="account-marker">[*]</span><span class="account-email">alice@gmail.com</span> <span class="account-status">active</span></div>
+              <div class="account-line"><span class="account-marker">[ ]</span><span class="account-email">bob@developer.io</span></div>
+              <div class="account-line"><span class="account-marker">[ ]</span><span class="account-email">carol@startup.co</span></div>
+            </div>
+            <div class="terminal-line">
+              <span class="terminal-prompt">~/dev</span>
+              <span class="terminal-command">gcam next</span>
+              <span class="cursor"></span>
+            </div>
+            <div class="terminal-output">
+              <p style="margin: 0; color: #27c93f;">✓ Switched to next account: bob@developer.io</p>
+            </div>
+            <div class="terminal-line">
+              <span class="terminal-prompt">~/dev</span>
+              <span class="terminal-command">gcam quota</span>
+              <span class="cursor"></span>
+            </div>
+            <div class="terminal-output">
+              <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 8px;">
+                <div>
+                  <div style="color: #888; font-size: 11px; margin-bottom: 4px;">gemini-2.5-flash</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                      <div style="width: 68%; height: 100%; background: var(--accent);"></div>
+                    </div>
+                    <span style="color: #888; font-size: 11px;">68%</span>
+                  </div>
+                </div>
+                <div>
+                  <div style="color: #888; font-size: 11px; margin-bottom: 4px;">gemini-2.5-pro</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                      <div style="width: 23%; height: 100%; background: var(--success);"></div>
+                    </div>
+                    <span style="color: #888; font-size: 11px;">23%</span>
+                  </div>
+                </div>
+                <div>
+                  <div style="color: #888; font-size: 11px; margin-bottom: 4px;">gemini-2.0-flash</div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="flex: 1; height: 4px; background: #333; border-radius: 2px; overflow: hidden;">
+                      <div style="width: 91%; height: 100%; background: var(--warn);"></div>
+                    </div>
+                    <span style="color: #888; font-size: 11px;">91%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features -->
+    <section class="section" data-od-id="features" id="features">
+      <div class="container">
+        <div style="max-width: 40ch; margin-bottom: 56px;">
+          <p class="eyebrow">Features</p>
+          <h2>Built for developers<br/>who live in the terminal.</h2>
+        </div>
+        <div class="grid-3">
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            <h3>Instant Switching</h3>
+            <p>Switch accounts in milliseconds. No restart, no re-auth, no friction.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h3>Atomic Operations</h3>
+            <p>Credential updates use temp-file + rename to prevent corruption under concurrent access.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <h3>Auto Quota Rotation</h3>
+            <p>When quota hits your threshold, gcam silently rotates to the next available account.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            </div>
+            <h3>Account Pool</h3>
+            <p>Add unlimited accounts via OAuth browser login. Manage them all from one command.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            </div>
+            <h3>Real-time Quota</h3>
+            <p>Check remaining quota per model via Google Cloud Code APIs before you hit the wall.</p>
+          </div>
+          <div class="feature">
+            <div class="feature-mark">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h3>Slash Commands</h3>
+            <p>After install, use /gcam directly inside Gemini CLI — no context switching.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Stats -->
+    <section class="section" data-od-id="stats">
+      <div class="container">
+        <div class="grid-4">
+          <div class="stat">
+            <div class="stat-num num">Go<span class="stat-unit"></span></div>
+            <p class="stat-label">Zero runtime dependencies. One static binary.</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">3<span class="stat-unit">OS</span></div>
+            <p class="stat-label">macOS, Linux, and Windows — one tool everywhere.</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">0<span class="stat-unit">deps</span></div>
+            <p class="stat-label">Pure Go standard library only. No surprises.</p>
+          </div>
+          <div class="stat">
+            <div class="stat-num num">1<span class="stat-unit">cmd</span></div>
+            <p class="stat-label">gcam install hooks everything in seconds.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Commands -->
+    <section class="section" data-od-id="commands" id="commands">
+      <div class="container">
+        <div style="max-width: 40ch; margin-bottom: 48px;">
+          <p class="eyebrow">Reference</p>
+          <h2>Every command you'll need.</h2>
+          <p class="lead" style="margin-top: 12px;">Simple, intuitive, and powerful.</p>
+        </div>
+        <div class="grid-2" style="gap: 48px;">
+          <div>
+            <h3 style="font-size: 14px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">Account Management</h3>
+            <table class="ds-table">
+              <tbody>
+                <tr>
+                  <td class="cmd">gcam</td>
+                  <td class="desc">List all accounts and their status</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam &lt;n&gt;</td>
+                  <td class="desc">Switch to account by index</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam &lt;email&gt;</td>
+                  <td class="desc">Switch to account by email</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam next</td>
+                  <td class="desc">Switch to next in pool</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div>
+            <h3 style="font-size: 14px; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.05em;">System</h3>
+            <table class="ds-table">
+              <tbody>
+                <tr>
+                  <td class="cmd">gcam quota</td>
+                  <td class="desc">Display quota usage</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam pool login</td>
+                  <td class="desc">Add account via OAuth</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam menu</td>
+                  <td class="desc">Interactive management</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam install</td>
+                  <td class="desc">Install hooks & commands</td>
+                </tr>
+                <tr>
+                  <td class="cmd">gcam uninstall</td>
+                  <td class="desc">Remove all hooks</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Installation -->
+    <section class="section" data-od-id="install" id="install">
+      <div class="container grid-1-2" style="align-items: center;">
+        <div>
+          <p class="eyebrow">Installation</p>
+          <h2>Up in 60 seconds.</h2>
+          <p class="lead" style="margin-top: 16px;">One build step. One install command. Then you're managing accounts like a pro.</p>
+          <div style="margin-top: 40px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div class="step-content">
+                <h4>Build from source</h4>
+                <p>Clone and compile with Go in seconds</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div class="step-content">
+                <h4>Install hooks</h4>
+                <p>Enable slash commands and shell integration</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div class="step-content">
+                <h4>Login accounts</h4>
+                <p>Add accounts via OAuth browser flow</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="code-block">
+          <div><span class="comment"># Clone the repo</span></div>
+          <div><span class="cmd">git</span> <span class="flag">clone</span> <span class="string">https://github.com/dong4j/gemini-cli-account-manager.git</span></div>
+          <div><span class="cmd">cd</span> gemini-cli-account-manager</div>
+          <br/>
+          <div><span class="comment"># Build the binary</span></div>
+          <div><span class="cmd">go build</span> <span class="flag">-o</span> gcam cmd/gcam/main.go</div>
+          <br/>
+          <div><span class="comment"># Install hooks (optional)</span></div>
+          <div><span class="cmd">./gcam</span> install</div>
+          <br/>
+          <div><span class="comment"># Add your first account</span></div>
+          <div><span class="cmd">./gcam</span> pool login</div>
+          <br/>
+          <div><span class="comment"># Start using Gemini CLI</span></div>
+          <div><span class="cmd">gemini</span> <span class="flag">--account</span> gcam</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section" data-od-id="cta" style="text-align: center;">
+      <div class="container" style="max-width: 560px;">
+        <p class="eyebrow">Get Started</p>
+        <h2>Stop switching tabs to regenerate accounts.</h2>
+        <p class="lead" style="margin: 16px auto 32px;">gcam handles the account juggling so you can stay in flow.</p>
+        <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+          <a href="https://github.com/dong4j/gemini-cli-account-manager" class="btn btn-primary btn-arrow" target="_blank">View on GitHub</a>
+          <a href="https://github.com/dong4j/gemini-cli-account-manager/releases" class="btn btn-secondary btn-arrow" target="_blank">Download Binary</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pagefoot" data-od-id="footer">
+    <div class="container row-between">
+      <span class="meta">gcam · Gemini CLI Account Manager</span>
+      <span class="meta">MIT License · dong4j</span>
+      <span class="meta">Update: 2026.05.29 00:20</span>
+    </div>
+  </footer>
+
+  <script>
+    // Simple scroll reveal animation
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+        }
+      });
+    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
+
+    document.querySelectorAll('.feature, .stat, .step, .grid-2 > div').forEach(el => {
+      el.classList.add('reveal');
+      observer.observe(el);
+    });
+  </script>
+</body>
+</html>

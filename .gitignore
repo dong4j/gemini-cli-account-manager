@@ -15,7 +15,7 @@
 # vendor/
 
 # Project specific
-gcam
+/gcam
 test_env/
 .auto_switch_retry_count
 .last_quota_error
