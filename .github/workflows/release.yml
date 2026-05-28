@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          BINARY_NAME=gcam
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            BINARY_NAME=gcam.exe
+          fi
+          go build -v -o $BINARY_NAME cmd/gcam/main.go
+          
+          # Rename and package
+          ASSET_NAME=gcam-${{ matrix.goos }}-${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            mv gcam.exe $ASSET_NAME.exe
+            echo "ASSET=$ASSET_NAME.exe" >> $GITHUB_ENV
+          else
+            mv gcam $ASSET_NAME
+            echo "ASSET=$ASSET_NAME" >> $GITHUB_ENV
+          fi
+
+      - name: Upload Release Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.ASSET }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
