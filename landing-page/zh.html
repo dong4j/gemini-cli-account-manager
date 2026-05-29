@@ -787,13 +787,13 @@
         <div>
           <p class="eyebrow">安装</p>
           <h2>60 秒快速上手。</h2>
-          <p class="lead" style="margin-top: 16px;">一步构建、一步安装，即刻成为账号管理大师。</p>
+          <p class="lead" style="margin-top: 16px;">一条命令即可完成安装，支持 macOS、Linux 和 Windows。</p>
           <div style="margin-top: 40px; display: flex; flex-direction: column; gap: 8px;">
             <div class="step">
               <div class="step-num">1</div>
               <div class="step-content">
-                <h4>从源码构建</h4>
-                <p>克隆并使用 Go 编译，几秒完成</p>
+                <h4>运行安装脚本</h4>
+                <p>一键安装，自动识别系统和架构</p>
               </div>
             </div>
             <div class="step">
@@ -813,21 +813,17 @@
           </div>
         </div>
         <div class="code-block">
-          <div><span class="comment"># 克隆仓库</span></div>
-          <div><span class="cmd">git</span> <span class="flag">clone</span> <span class="string">https://github.com/dong4j/gemini-cli-account-manager.git</span></div>
-          <div><span class="cmd">cd</span> gemini-cli-account-manager</div>
+          <div><span class="comment"># macOS / Linux</span></div>
+          <div><span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.sh</span> <span class="flag">| bash</span></div>
           <br/>
-          <div><span class="comment"># 构建二进制文件</span></div>
-          <div><span class="cmd">go build</span> <span class="flag">-o</span> gcam cmd/gcam/main.go</div>
+          <div><span class="comment"># Windows (PowerShell)</span></div>
+          <div><span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.bat</span> <span class="flag">-o install.bat; .\install.bat</span></div>
           <br/>
-          <div><span class="comment"># 安装钩子（可选）</span></div>
-          <div><span class="cmd">./gcam</span> install</div>
+          <div><span class="comment"># 安装完成后，启用钩子</span></div>
+          <div><span class="cmd">gcam</span> install</div>
           <br/>
           <div><span class="comment"># 添加第一个账号</span></div>
-          <div><span class="cmd">./gcam</span> pool login</div>
-          <br/>
-          <div><span class="comment"># 开始使用 Gemini CLI</span></div>
-          <div><span class="cmd">gemini</span> <span class="flag">--account</span> gcam</div>
+          <div><span class="cmd">gcam</span> pool login</div>
         </div>
       </div>
     </section>
@@ -850,7 +846,7 @@
     <div class="container row-between">
       <span class="meta">gcam · Gemini CLI 账号管理器</span>
       <span class="meta">MIT License · dong4j</span>
-      <span class="meta">Version: v1.1.0</span>
+      <span class="meta">Version: v1.2.0</span>
     </div>
   </footer>
 

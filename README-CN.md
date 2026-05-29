@@ -24,22 +24,39 @@
 
 ## 🚀 快速开始
 
-### 环境要求
-- 已安装 [Go](https://golang.google.cn/doc/install) 1.18 或更高版本。
-- 已安装 Gemini CLI 且 `gemini` 命令已加入系统的 `PATH`。
+### 一键安装（推荐）
 
-### 源码编译
+**macOS / Linux:**
 ```bash
-git clone https://github.com/dong4j/gemini-cli-account-manager.git
-cd gemini-cli-account-manager
-go build -o gcam cmd/gcam/main.go
+curl -sSL https://gcam.dong4j.site/install.sh | bash
 ```
 
+**Windows:**
+```powershell
+# 在 PowerShell 或 CMD 中运行
+curl -sSL https://gcam.dong4j.site/install.bat -o install.bat && install.bat
+```
+
+安装目录：
+- **macOS/Linux**: `~/.local/bin/gcam`
+- **Windows**: `%LOCALAPPDATA%\Programs\gcam\gcam.exe`
 
 ### 安装挂钩 (Hooks)
 执行以下命令以启用自动配额切换功能和斜杠命令支持：
 ```bash
-./gcam install
+gcam install
+```
+
+### 源码编译
+
+**环境要求：**
+- 已安装 [Go](https://golang.google.cn/doc/install) 1.18 或更高版本。
+- 已安装 Gemini CLI 且 `gemini` 命令已加入系统的 `PATH`。
+
+```bash
+git clone https://github.com/dong4j/gemini-cli-account-manager.git
+cd gemini-cli-account-manager
+go build -o gcam cmd/gcam/main.go
 ```
 
 ---
@@ -83,7 +100,7 @@ go build -o gcam cmd/gcam/main.go
 
 ---
 由 **dong4j** 开发。欢迎提交 Issue 或 PR！
-�说明
+�说明
 
 配置文件位于 `~/.gemini/auth_config.json`。
 

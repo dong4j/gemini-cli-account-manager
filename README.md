@@ -35,11 +35,35 @@ While the Python version provided the foundational concept for multi-account man
 
 ## 🚀 Installation
 
-### Prerequisites
+### One-Click Install (Recommended)
+
+**macOS / Linux:**
+```bash
+curl -sSL https://gcam.dong4j.site/install.sh | bash
+```
+
+**Windows:**
+```powershell
+# 在 PowerShell 或 CMD 中运行
+curl -sSL https://gcam.dong4j.site/install.bat -o install.bat && install.bat
+```
+
+This will install the binary to:
+- **macOS/Linux**: `~/.local/bin/gcam`
+- **Windows**: `%LOCALAPPDATA%\Programs\gcam\gcam.exe`
+
+### Install Hooks
+To enable automatic quota switching and slash commands in Gemini CLI:
+```bash
+gcam install
+```
+
+### Build from Source
+
+**Prerequisites:**
 - [Go](https://golang.org/doc/install) 1.18 or higher.
 - Gemini CLI installed and available in your `PATH`.
 
-### Build from Source
 ```bash
 git clone https://github.com/dong4j/gemini-cli-account-manager.git
 cd gemini-cli-account-manager
