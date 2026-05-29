@@ -9,8 +9,29 @@ permissions:
   contents: write
 
 jobs:
+  # 先运行构建和测试
   build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.20'
+
+      - name: Build
+        run: go build -v -o gcam ./cmd/gcam
+
+      - name: Test
+        run: go test -v ./...
+
+  # 发布二进制文件（依赖 build job）
+  release:
     name: Build and Release
+    needs: build
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -54,7 +75,7 @@ jobs:
             BINARY_NAME=gcam.exe
           fi
           go build -v -o $BINARY_NAME ./cmd/gcam
-          
+
           # Rename and package
           ASSET_NAME=gcam-${{ matrix.goos }}-${{ matrix.goarch }}
           if [ "${{ matrix.goos }}" = "windows" ]; then
@@ -69,5 +90,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ env.ASSET }}
+          # 自动根据 commit 记录生成发布说明
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

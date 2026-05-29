@@ -4,8 +4,12 @@ on:
   push:
     branches: ["main"]
     paths:
+      # 只在 landing-page 目录变化时触发
       - "landing-page/**"
       - ".github/workflows/pages.yml"
+    # 忽略 tag push，避免与 release 混淆
+    tags-ignore:
+      - 'v*'
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:

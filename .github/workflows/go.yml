@@ -3,6 +3,9 @@ name: Go Build & Test
 on:
   push:
     branches: [ main ]
+    # 忽略 tag push，避免与 release.yml 重复执行
+    tags-ignore:
+      - 'v*'
   pull_request:
     branches: [ main ]
 
