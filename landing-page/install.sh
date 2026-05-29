@@ -17,22 +17,22 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    echo -e "${BLUE}[INFO]${NC} $1" >&2
 }
 
 success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    echo -e "${GREEN}[SUCCESS]${NC} $1" >&2
 }
 
 warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
+    echo -e "${YELLOW}[WARN]${NC} $1" >&2
 }
 
 error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
 # 检测操作系统和架构
@@ -49,7 +49,7 @@ detect_os() {
             ;;
         *)
             error "不支持的操作系统: $OS"
-            error "Windows 用户请使用 install.bat: https://raw.githubusercontent.com/dong4j/gemini-cli-account-manager/main/install.bat"
+            error "Windows 用户请使用 install.bat: https://gcam.dong4j.site/install.bat"
             exit 1
             ;;
     esac
@@ -79,7 +79,6 @@ get_latest_version() {
     fi
 
     info "获取最新版本号..."
-    # 使用 GitHub API 获取最新 release 版本
     VERSION=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
 
     if [ -z "$VERSION" ]; then
@@ -90,7 +89,7 @@ get_latest_version() {
     info "最新版本: $VERSION"
 }
 
-# 下载二进制文件
+# 下载二进制文件（只返回文件路径，不输出其他内容）
 download_binary() {
     local version="$1"
     local filename="${BINARY_NAME}-${OS}-${ARCH}"
@@ -98,36 +97,36 @@ download_binary() {
 
     info "下载地址: $download_url"
 
-    # 创建临时目录
-    TEMP_DIR=$(mktemp -d)
-    local dest="${TEMP_DIR}/${filename}"
+    # 创建临时文件
+    local tmpfile="/tmp/gcam_install_${filename}"
+    rm -f "$tmpfile"
 
-    # 下载文件
     info "正在下载..."
-    if ! curl -sSL -o "$dest" "$download_url"; then
+    if ! curl -sSL -o "$tmpfile" "$download_url"; then
         error "下载失败，请检查版本号是否正确: $version"
-        rm -rf "$TEMP_DIR"
+        rm -f "$tmpfile"
         exit 1
     fi
 
     # 验证文件
-    if [ ! -s "$dest" ]; then
+    if [ ! -s "$tmpfile" ]; then
         error "下载文件为空或损坏"
-        rm -rf "$TEMP_DIR"
+        rm -f "$tmpfile"
         exit 1
     fi
 
-    # 检查文件大小（防止下载到 HTML 错误页面）
-    local size=$(wc -c < "$dest")
+    # 检查文件大小
+    local size=$(wc -c < "$tmpfile" 2>/dev/null || echo "0")
     if [ "$size" -lt 1000 ]; then
-        if file "$dest" | grep -q "HTML"; then
+        if file "$tmpfile" 2>/dev/null | grep -q "HTML"; then
             error "下载文件似乎是 HTML 错误页面，版本可能不存在: $version"
-            rm -rf "$TEMP_DIR"
+            rm -f "$tmpfile"
             exit 1
         fi
     fi
 
-    echo "$dest"
+    # 只输出文件路径到 stdout（供变量捕获）
+    echo "$tmpfile"
 }
 
 # 安装到目标目录
@@ -147,8 +146,8 @@ install_binary() {
     mv "$src" "$target"
     chmod +x "$target"
 
-    # 清理临时目录
-    rm -rf "$(dirname "$src")"
+    # 清理临时文件
+    rm -f "$src"
 
     success "安装完成!"
     echo
@@ -162,7 +161,7 @@ install_binary() {
 # 检查并提示配置 PATH
 check_path() {
     # 检查 PATH 是否已包含安装目录
-    if echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then
+    if echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
         info "PATH 配置正确，无需额外设置"
         return 0
     fi
@@ -215,8 +214,8 @@ show_usage() {
     echo -e "  ${GREEN}gcam${NC}               查看账号列表"
     echo -e "  ${GREEN}gcam 1${NC}            切换到 1 号账号"
     echo -e "  ${GREEN}gcam next${NC}          切换到下一个账号"
-    echo -e "  ${GREEN}gcam quota${NC}          查看配额使用情况"
-    echo -e "  ${GREEN}gcam pool login${NC}    添加新账号"
+    echo -e "  ${GREEN}gcam quota${NC}         查看配额使用情况"
+    echo -e "  ${GREEN}gcam pool login${NC}   添加新账号"
     echo -e "  ${GREEN}gcam menu${NC}          打开交互式菜单"
     echo
     echo "  安装钩子（启用 /gcam 命令）:"
@@ -247,7 +246,7 @@ main() {
     # 获取版本
     get_latest_version "$1"
 
-    # 下载
+    # 下载（只捕获文件路径）
     BINARY_PATH=$(download_binary "$VERSION")
 
     # 安装
