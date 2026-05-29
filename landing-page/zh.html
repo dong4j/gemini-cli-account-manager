@@ -819,6 +819,9 @@
           <div><span class="comment"># Windows (PowerShell)</span></div>
           <div><span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.bat</span> <span class="flag">-o install.bat; .\install.bat</span></div>
           <br/>
+          <div><span class="comment"># 避免 GitHub API 频率限制 (60次/时 → 5000次/时)</span></div>
+          <div><span class="cmd">export GITHUB_TOKEN=your_token</span> <span class="flag">&amp;&amp;</span> <span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.sh</span> <span class="flag">| bash</span></div>
+          <br/>
           <div><span class="comment"># 安装完成后，启用钩子</span></div>
           <div><span class="cmd">gcam</span> install</div>
           <br/>

@@ -37,6 +37,11 @@ curl -sSL https://gcam.dong4j.site/install.sh | bash
 curl -sSL https://gcam.dong4j.site/install.bat -o install.bat && install.bat
 ```
 
+**避免 GitHub API 频率限制** (60次/时 → 5000次/时):
+```bash
+export GITHUB_TOKEN=your_token && curl -sSL https://gcam.dong4j.site/install.sh | bash
+```
+
 安装目录：
 - **macOS/Linux**: `~/.local/bin/gcam`
 - **Windows**: `%LOCALAPPDATA%\Programs\gcam\gcam.exe`

@@ -79,10 +79,18 @@ get_latest_version() {
     fi
 
     info "Fetching latest version..."
-    VERSION=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+
+    # Use GitHub token if available (raises API rate limit from 60 to 5000 per hour)
+    local api_url="https://api.github.com/repos/${REPO}/releases/latest"
+    if [ -n "$GITHUB_TOKEN" ]; then
+        VERSION=$(curl -sSL -H "Authorization: token $GITHUB_TOKEN" "$api_url" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+    else
+        VERSION=$(curl -sSL "$api_url" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
+    fi
 
     if [ -z "$VERSION" ]; then
         error "Failed to fetch latest version. Please check your network or specify a version."
+        error "Tip: export GITHUB_TOKEN to avoid rate limits"
         exit 1
     fi
 

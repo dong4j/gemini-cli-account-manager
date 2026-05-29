@@ -821,6 +821,9 @@
           <div><span class="comment"># Windows (PowerShell)</span></div>
           <div><span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.bat</span> <span class="flag">-o install.bat; .\install.bat</span></div>
           <br/>
+          <div><span class="comment"># Avoid GitHub API rate limit (60 req/hr → 5000 req/hr)</span></div>
+          <div><span class="cmd">export GITHUB_TOKEN=your_token</span> <span class="flag">&amp;&amp;</span> <span class="cmd">curl</span> <span class="flag">-sSL</span> <span class="string">https://gcam.dong4j.site/install.sh</span> <span class="flag">| bash</span></div>
+          <br/>
           <div><span class="comment"># After install, enable hooks</span></div>
           <div><span class="cmd">gcam</span> install</div>
           <br/>
