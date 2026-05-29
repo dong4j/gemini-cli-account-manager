@@ -10,6 +10,7 @@ import (
 
 	"gemini-cli-account-manager/internal/auth"
 	"gemini-cli-account-manager/internal/config"
+	"gemini-cli-account-manager/internal/i18n"
 )
 
 var (
@@ -34,7 +35,8 @@ var QuotaErrorPatterns = []string{
 }
 
 type HookContext struct {
-	PromptResponse string `json:"prompt_response"`
+	SessionID      string `json:"session_id,omitempty"`
+	PromptResponse string `json:"prompt_response,omitempty"`
 }
 
 type HookResponse struct {
@@ -43,17 +45,53 @@ type HookResponse struct {
 }
 
 func RunPreCheckHook(cfg *config.Config) {
-	// Pre-check logic from quota_pre_check.py
-	// If the last request failed with quota error, we might want to switch now.
-	// But usually, AfterAgent handle it. PreCheck can also check current quota.
-	
-	_, shouldSwitch, reason, err := CheckQuota(cfg)
-	if err == nil && shouldSwitch {
+	// Read context from stdin
+	var ctx HookContext
+	decoder := json.NewDecoder(os.Stdin)
+	if err := decoder.Decode(&ctx); err != nil {
+		// If no valid input, just pass through
+		fmt.Println("{}")
+		return
+	}
+
+	sessionID := ctx.SessionID
+	cacheMinutes := cfg.AutoSwitch.CacheMinutes
+	if cacheMinutes <= 0 {
+		cacheMinutes = 3 // Default
+	}
+
+	// Try to load from cache
+	cache := LoadCache(sessionID, cacheMinutes)
+	var buckets []QuotaBucket
+	var shouldSwitch bool
+	var reason string
+
+	if cache != nil {
+		// Use cached buckets
+		buckets = cache.Buckets
+		_, shouldSwitch, reason = evaluateQuotaStrategy(buckets, cfg)
+		fmt.Fprintf(os.Stderr, "[Pre-Check] "+i18n.T("using_cached_quota")+"\n", cacheMinutes)
+	} else {
+		// Fetch fresh data
+		var err error
+		buckets, shouldSwitch, reason, err = CheckQuota(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "[Pre-Check] Quota check failed: %v\n", err)
+			fmt.Println("{}")
+			return
+		}
+		// Save to cache
+		_ = SaveCache(sessionID, buckets, cacheMinutes)
+	}
+
+	if shouldSwitch {
 		email, err := auth.SwitchNext()
 		if err == nil {
-			msg := fmt.Sprintf("🔄 [Pre-Check] Quota low (%s). Switched to: %s", reason, email)
+			msg := fmt.Sprintf("🔄 [Pre-Check] "+i18n.T("quota_low"), reason, email)
 			fmt.Fprintf(os.Stderr, "%s\n", msg)
 			_ = os.Remove(TokenCacheFile)
+			// Clear cache after switch to force fresh check
+			_ = ClearCache()
 		}
 	}
 	fmt.Println("{}")
@@ -108,7 +146,7 @@ func RunAutoSwitchHook(cfg *config.Config, input []byte) {
 
 	msg := fmt.Sprintf("🔄 Quota exhausted. Switched to: %s. Retrying... (%d/%d)", 
 		newAccount, retryCount+1, cfg.AutoSwitch.MaxRetries)
-	
+
 	resp := HookResponse{
 		Decision:      "retry",
 		SystemMessage: msg,

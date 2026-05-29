@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strconv"
 
 	"gemini-cli-account-manager/internal/config"
+	"gemini-cli-account-manager/internal/i18n"
 )
 
 // Profile represents a saved account profile
@@ -76,7 +78,7 @@ func FastSwitch(targetArg string) (string, error) {
 		return "", err
 	}
 	if len(profiles) == 0 {
-		return "", fmt.Errorf("no profiles found")
+		return "", fmt.Errorf(i18n.T("no_profiles_found"))
 	}
 
 	targetEmail := targetArg
@@ -90,16 +92,16 @@ func FastSwitch(targetArg string) (string, error) {
 				targetEmail = profiles[idx]
 				targetDir = filepath.Join(config.ProfilesDir, targetEmail)
 			} else {
-				return "", fmt.Errorf("index out of range (1-%d)", len(profiles))
+				return "", fmt.Errorf(i18n.T("index_out_of_range"), targetArg, len(profiles))
 			}
 		} else {
-			return "", fmt.Errorf("account not found: %s", targetArg)
+			return "", fmt.Errorf(i18n.T("account_not_found"), targetArg)
 		}
 	}
 
 	targetCreds := filepath.Join(targetDir, "oauth_creds.json")
 	if _, err := os.Stat(targetCreds); os.IsNotExist(err) {
-		return "", fmt.Errorf("missing credentials for: %s", targetEmail)
+		return "", fmt.Errorf(i18n.T("missing_creds"), targetEmail)
 	}
 
 	accs, err := config.LoadAccounts()
@@ -159,7 +161,7 @@ func SwitchNext() (string, error) {
 		return "", err
 	}
 	if len(profiles) == 0 {
-		return "", fmt.Errorf("no profiles found")
+		return "", fmt.Errorf(i18n.T("no_profiles_found"))
 	}
 
 	accs, err := config.LoadAccounts()
@@ -177,4 +179,103 @@ func SwitchNext() (string, error) {
 
 	nextIdx := (currentIdx + 1) % len(profiles)
 	return FastSwitch(profiles[nextIdx])
+}
+
+// RemoveAccount removes an account from the pool by index or email
+func RemoveAccount(targetArg string) error {
+	profiles, err := GetProfiles()
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		return fmt.Errorf(i18n.T("no_profiles_found"))
+	}
+
+	accs, err := config.LoadAccounts()
+	if err != nil {
+		return err
+	}
+
+	targetEmail := targetArg
+	targetDir := filepath.Join(config.ProfilesDir, targetArg)
+
+	// Handle numeric index
+	if _, err := os.Stat(targetDir); os.IsNotExist(err) {
+		if idx, err := strconv.Atoi(targetArg); err == nil {
+			idx-- // 1-based to 0-based
+			if idx >= 0 && idx < len(profiles) {
+				targetEmail = profiles[idx]
+				targetDir = filepath.Join(config.ProfilesDir, targetEmail)
+			} else {
+				return fmt.Errorf(i18n.T("index_out_of_range"), targetArg, len(profiles))
+			}
+		} else {
+			return fmt.Errorf(i18n.T("account_not_found"), targetArg)
+		}
+	}
+
+	// Cannot remove active account
+	if targetEmail == accs.Active {
+		return fmt.Errorf("cannot remove active account, please switch to another account first")
+	}
+
+	// Remove profile directory
+	if err := os.RemoveAll(targetDir); err != nil {
+		return fmt.Errorf("failed to remove profile: %w", err)
+	}
+
+	// Update accounts.json
+	if accs.Old == nil {
+		accs.Old = []string{}
+	}
+	for i, email := range accs.Old {
+		if email == targetEmail {
+			accs.Old = append(accs.Old[:i], accs.Old[i+1:]...)
+			break
+		}
+	}
+	return config.SaveAccounts(accs)
+}
+
+// ImportAccount imports account credentials from a file
+func ImportAccount(credsPath, email string) error {
+	// Read credentials file
+	data, err := os.ReadFile(credsPath)
+	if err != nil {
+		return fmt.Errorf("failed to read credentials file: %w", err)
+	}
+
+	// Validate JSON
+	var creds map[string]interface{}
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return fmt.Errorf("invalid credentials file: not valid JSON")
+	}
+
+	// Validate required fields
+	required := []string{"access_token", "refresh_token"}
+	for _, field := range required {
+		if _, ok := creds[field]; !ok {
+			return fmt.Errorf("invalid credentials file: missing %s", field)
+		}
+	}
+
+	// Create profile directory
+	profileDir := filepath.Join(config.ProfilesDir, email)
+	if err := os.MkdirAll(profileDir, 0755); err != nil {
+		return fmt.Errorf("failed to create profile directory: %w", err)
+	}
+
+	// Copy credentials
+	if err := os.WriteFile(filepath.Join(profileDir, "oauth_creds.json"), data, 0644); err != nil {
+		return fmt.Errorf("failed to write credentials: %w", err)
+	}
+
+	// Also look for google_account_id in the same directory
+	idSrcPath := filepath.Join(filepath.Dir(credsPath), "google_account_id")
+	if _, err := os.Stat(idSrcPath); err == nil {
+		idData, _ := os.ReadFile(idSrcPath)
+		_ = os.WriteFile(filepath.Join(profileDir, "google_account_id"), idData, 0644)
+	}
+
+	return nil
 }

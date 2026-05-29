@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -18,6 +19,16 @@ const (
 	CodeAssistEndpoint   = "https://cloudcode-pa.googleapis.com"
 	CodeAssistAPIVersion = "v1internal"
 )
+
+var CacheFile = filepath.Join(config.GeminiDir, "quota_cache.json")
+
+// QuotaCache represents cached quota information
+type QuotaCache struct {
+	Timestamp    string        `json:"timestamp"`
+	SessionID    string        `json:"session_id"`
+	Buckets      []QuotaBucket `json:"buckets"`
+	CacheMinutes int           `json:"cache_minutes"`
+}
 
 type OAuthCreds struct {
 	AccessToken string `json:"access_token"`
@@ -91,18 +102,24 @@ func LoadToken() (string, error) {
 		return "", err
 	}
 
-	// Check expiry (with some buffer)
+	// Check expiry (with some buffer of 10 seconds)
 	if creds.ExpiryDate > 0 && time.Now().UnixMilli() > creds.ExpiryDate-10000 {
-		return creds.AccessToken, fmt.Errorf("token expired")
+		return "", fmt.Errorf("token expired")
 	}
 
 	return creds.AccessToken, nil
 }
 
-func RefreshToken() error {
+// RefreshToken executes gemini command to force token refresh
+// Returns the new access token if successful
+func RefreshToken() (string, error) {
 	// Execute gemini -p "/model list" to force refresh
 	cmd := exec.Command("gemini", "-p", "/model list")
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+	// After refresh, reload the token from file
+	return LoadToken()
 }
 
 func GetProjectID(token string) (string, error) {
@@ -179,30 +196,95 @@ func CheckQuota(cfg *config.Config) ([]QuotaBucket, bool, string, error) {
 	if err != nil {
 		// Try refreshing once
 		if strings.Contains(err.Error(), "expired") || os.IsNotExist(err) {
-			_ = RefreshToken()
-			token, err = LoadToken()
+			token, err = RefreshToken()
 		}
 		if err != nil {
-			return nil, false, "", err
+			return nil, false, "", fmt.Errorf("failed to get token: %w", err)
 		}
 	}
 
 	projectID, err := GetProjectID(token)
 	if err != nil && strings.Contains(err.Error(), "unauthorized") {
-		_ = RefreshToken()
-		token, _ = LoadToken()
+		// Token might have expired, try to refresh
+		token, err = RefreshToken()
+		if err != nil {
+			return nil, false, "", fmt.Errorf("token refresh failed: %w", err)
+		}
 		projectID, err = GetProjectID(token)
 	}
 	if err != nil {
-		return nil, false, "", err
+		return nil, false, "", fmt.Errorf("failed to get project ID: %w", err)
 	}
 
 	buckets, err := GetUserQuota(token, projectID)
 	if err != nil {
-		return nil, false, "", err
+		return nil, false, "", fmt.Errorf("failed to get quota: %w", err)
 	}
 
-	// Logic for switching based on strategy
+	// Use the extracted strategy evaluation
+	shouldSwitch, isLow, reason := evaluateQuotaStrategy(buckets, cfg)
+	return buckets, shouldSwitch && isLow, reason, nil
+}
+
+// LoadCache loads quota information from cache file
+// Returns nil if cache is expired or doesn't exist
+func LoadCache(sessionID string, cacheMinutes int) *QuotaCache {
+	data, err := os.ReadFile(CacheFile)
+	if err != nil {
+		return nil
+	}
+
+	var cache QuotaCache
+	if err := json.Unmarshal(data, &cache); err != nil {
+		return nil
+	}
+
+	// Parse timestamp
+	cacheTime, err := time.Parse(time.RFC3339, cache.Timestamp)
+	if err != nil {
+		return nil
+	}
+
+	// Check if cache is expired
+	if time.Since(cacheTime) > time.Duration(cacheMinutes)*time.Minute {
+		return nil
+	}
+
+	// If session changed, return nil to force refresh
+	if cache.SessionID != "" && cache.SessionID != sessionID {
+		return nil
+	}
+
+	return &cache
+}
+
+// SaveCache saves quota information to cache file
+func SaveCache(sessionID string, buckets []QuotaBucket, cacheMinutes int) error {
+	cache := QuotaCache{
+		Timestamp:    time.Now().Format(time.RFC3339),
+		SessionID:    sessionID,
+		Buckets:      buckets,
+		CacheMinutes: cacheMinutes,
+	}
+
+	data, err := json.MarshalIndent(cache, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(CacheFile, data, 0644)
+}
+
+// ClearCache removes the cache file
+func ClearCache() error {
+	if _, err := os.Stat(CacheFile); os.IsNotExist(err) {
+		return nil
+	}
+	return os.Remove(CacheFile)
+}
+
+// evaluateQuotaStrategy determines if a quota switch is needed based on strategy
+func evaluateQuotaStrategy(buckets []QuotaBucket, cfg *config.Config) (bool, bool, string) {
 	threshold := cfg.AutoSwitch.Threshold / 100.0
 	strategy := cfg.AutoSwitch.Strategy
 	pattern := cfg.AutoSwitch.ModelPattern
@@ -210,9 +292,6 @@ func CheckQuota(cfg *config.Config) ([]QuotaBucket, bool, string, error) {
 		pattern = cfg.AutoSwitch.CustomModelPattern
 	}
 
-	// For simplicity in this initial version, I'll use a direct match or simple logic.
-	// We can implement full regex later if needed.
-	
 	var targets []QuotaBucket
 	for _, b := range buckets {
 		match := false
@@ -226,7 +305,6 @@ func CheckQuota(cfg *config.Config) ([]QuotaBucket, bool, string, error) {
 		case "gemini3.1-series-only":
 			match = strings.Contains(b.ModelID, "gemini-3.1")
 		case "custom":
-			// Simple contains for now, or use regexp package
 			match = strings.Contains(b.ModelID, pattern)
 		}
 
@@ -235,8 +313,20 @@ func CheckQuota(cfg *config.Config) ([]QuotaBucket, bool, string, error) {
 		}
 	}
 
+	// Fallback to models_to_check if no targets found by strategy
+	if len(targets) == 0 && len(cfg.AutoSwitch.ModelsToCheck) > 0 {
+		for _, b := range buckets {
+			for _, model := range cfg.AutoSwitch.ModelsToCheck {
+				if strings.Contains(b.ModelID, model) && b.RemainingFraction != 0 {
+					targets = append(targets, b)
+					break
+				}
+			}
+		}
+	}
+
 	if len(targets) == 0 {
-		return buckets, false, "No targets", nil
+		return false, false, "No targets"
 	}
 
 	allLow := true
@@ -250,8 +340,8 @@ func CheckQuota(cfg *config.Config) ([]QuotaBucket, bool, string, error) {
 	}
 
 	if allLow {
-		return buckets, true, strings.Join(lowDetails, ", "), nil
+		return true, true, strings.Join(lowDetails, ", ")
 	}
 
-	return buckets, false, "Quota OK", nil
+	return true, false, "Quota OK"
 }

@@ -253,7 +253,11 @@ func ExchangeCode(cfg *config.Config, code, redirectURI string) (*TokenResponse,
 	data.Set("redirect_uri", redirectURI)
 	data.Set("grant_type", "authorization_code")
 
-	resp, err := http.PostForm(GoogleTokenURL, data)
+	req, _ := http.NewRequest("POST", GoogleTokenURL, strings.NewReader(data.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "vscode/1.92.2")
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

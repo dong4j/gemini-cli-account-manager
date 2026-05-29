@@ -29,8 +29,8 @@ func RestartGemini(pid int, delay time.Duration) {
 		switch runtime.GOOS {
 		case "windows":
 			cmd = exec.Command("cmd.exe", "/c", "start", "gemini")
-		case "darwin":
-			cmd = exec.Command("open", "-a", "Terminal", "gemini") // Or just "gemini" if it's a CLI
+		case "darwin", "linux":
+			cmd = exec.Command("gemini")
 		default:
 			cmd = exec.Command("gemini")
 		}

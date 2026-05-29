@@ -10,6 +10,7 @@ import (
 
 	"gemini-cli-account-manager/internal/auth"
 	"gemini-cli-account-manager/internal/config"
+	"gemini-cli-account-manager/internal/i18n"
 	"gemini-cli-account-manager/internal/quota"
 	"gemini-cli-account-manager/internal/ui"
 	"gemini-cli-account-manager/internal/utils"
@@ -26,7 +27,7 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		ui.Error("Failed to load config: %v", err)
+		ui.Error(i18n.T("error")+": %v", err)
 		os.Exit(1)
 	}
 
@@ -34,10 +35,10 @@ func main() {
 	case "next":
 		email, err := auth.SwitchNext()
 		if err != nil {
-			ui.Error("Switch failed: %v", err)
+			ui.Error(i18n.T("switch_failed"), err)
 			os.Exit(1)
 		}
-		ui.Success("Switched to next account: %s", email)
+		ui.Success(i18n.T("switched_to"), email)
 
 	case "list", "-l":
 		listStatus()
@@ -71,17 +72,52 @@ func main() {
 	case "install":
 		execPath, _ := os.Executable()
 		if err := utils.InstallHooks(execPath); err != nil {
-			ui.Error("Installation failed: %v", err)
+			ui.Error(i18n.T("error")+": %v", err)
 			os.Exit(1)
 		}
-		ui.Success("Installation complete!")
+		ui.Success(i18n.T("install_complete"))
 
 	case "uninstall":
-		if err := utils.UninstallHooks(); err != nil {
-			ui.Error("Uninstallation failed: %v", err)
+		keepAccounts := false
+		force := false
+		for _, arg := range args {
+			if arg == "--keep-accounts" || arg == "-k" {
+				keepAccounts = true
+			}
+			if arg == "--force" || arg == "-f" || arg == "-y" {
+				force = true
+			}
+		}
+
+		if !force {
+			fmt.Printf("\n  %s\n", i18n.T("uninstall_title"))
+			fmt.Println("  " + strings.Repeat("-", 40))
+			fmt.Printf("  %s:\n", i18n.T("uninstall_files"))
+			for _, f := range utils.GetUninstallFiles(keepAccounts) {
+				if _, err := os.Stat(f); err == nil {
+					fmt.Printf("    %s[remove]%s %s\n", ui.Red, ui.Reset, f)
+				} else {
+					fmt.Printf("    %s[skip]%s    %s (not found)\n", ui.Dim, ui.Reset, f)
+				}
+			}
+			if !keepAccounts {
+				fmt.Println("  " + ui.Yellow + "Warning:" + ui.Reset + " " + i18n.T("uninstall_data"))
+			}
+			fmt.Println()
+			fmt.Print("  " + i18n.T("uninstall_proceed"))
+			var confirm string
+			fmt.Scanln(&confirm)
+			if confirm != "y" && confirm != "Y" && confirm != "yes" {
+				fmt.Println("  " + i18n.T("uninstall_cancelled"))
+				return
+			}
+		}
+
+		if err := utils.UninstallHooks(utils.UninstallOptions{KeepAccounts: keepAccounts}); err != nil {
+			ui.Error(i18n.T("error")+": %v", err)
 			os.Exit(1)
 		}
-		ui.Success("Uninstallation complete!")
+		ui.Success(i18n.T("uninstall_complete"))
 
 	case "restart":
 		if len(args) > 0 {
@@ -99,48 +135,48 @@ func main() {
 		// Treat as account identifier (index or email)
 		email, err := auth.FastSwitch(command)
 		if err != nil {
-			ui.Error("Switch failed: %v", err)
+			ui.Error(i18n.T("switch_failed"), err)
 			os.Exit(1)
 		}
-		ui.Success("Switched to: %s", email)
+		ui.Success(i18n.T("switched_to"), email)
 	}
 }
 
 func interactiveMenu(cfg *config.Config) {
 	items := []ui.MenuItem{
-		{Label: "Switch Account", Action: func() {
+		{Label: i18n.T("switch_account"), Action: func() {
 			listStatus()
-			fmt.Printf("Enter index or email: ")
+			fmt.Print(i18n.T("enter_idx_email") + ": ")
 			var target string
 			fmt.Scanln(&target)
 			if target != "" {
 				email, err := auth.FastSwitch(target)
 				if err != nil {
-					ui.Error("Switch failed: %v", err)
+					ui.Error(i18n.T("switch_failed"), err)
 				} else {
-					ui.Success("Switched to: %s", email)
+					ui.Success(i18n.T("switched_to"), email)
 				}
 			}
 		}},
-		{Label: "Switch to Next", Action: func() {
+		{Label: i18n.T("switch_next"), Action: func() {
 			email, err := auth.SwitchNext()
 			if err != nil {
-				ui.Error("Switch failed: %v", err)
+				ui.Error(i18n.T("switch_failed"), err)
 			} else {
-				ui.Success("Switched to: %s", email)
+				ui.Success(i18n.T("switched_to"), email)
 			}
 		}},
-		{Label: "Change Strategy", Action: func() {
+		{Label: i18n.T("change_strategy"), Action: func() {
 			handleStrategy(cfg, []string{})
 		}},
-		{Label: "Manage Pool", Action: func() {
+		{Label: i18n.T("manage_pool"), Action: func() {
 			handlePool(cfg, []string{})
 		}},
-		{Label: "Show Quota", Action: func() {
+		{Label: i18n.T("usage"), Action: func() {
 			showQuota(cfg)
 		}},
 	}
-	ui.RenderMenu("Gemini CLI Auth Manager", items)
+	ui.RenderMenu(i18n.T("title"), items)
 }
 
 func handlePool(cfg *config.Config, args []string) {
@@ -148,10 +184,32 @@ func handlePool(cfg *config.Config, args []string) {
 		switch args[0] {
 		case "login":
 			if err := auth.Login(cfg); err != nil {
-				ui.Error("Login failed: %v", err)
+				ui.Error(i18n.T("login_failed")+": %v", err)
 			}
 		case "list":
 			listStatus()
+		case "remove", "delete", "rm":
+			if len(args) < 2 {
+				ui.Error("Usage: gcam pool remove <index|email>")
+				return
+			}
+			if err := auth.RemoveAccount(args[1]); err != nil {
+				ui.Error(i18n.T("error")+": %v", err)
+			} else {
+				ui.Success(i18n.T("updated"))
+			}
+		case "import":
+			if len(args) < 3 {
+				ui.Error("Usage: gcam pool import <path_to_oauth_creds.json> <email>")
+				return
+			}
+			if err := auth.ImportAccount(args[1], args[2]); err != nil {
+				ui.Error(i18n.T("error")+": %v", err)
+			} else {
+				ui.Success(i18n.T("success"))
+			}
+		default:
+			ui.Error(i18n.T("error")+": %s", args[0])
 		}
 	} else {
 		listStatus()
@@ -160,24 +218,52 @@ func handlePool(cfg *config.Config, args []string) {
 
 func handleStrategy(cfg *config.Config, args []string) {
 	if len(args) > 0 {
-		cfg.AutoSwitch.Strategy = args[0]
+		// Apply alias mapping
+		strategy := args[0]
+		switch strategy {
+		case "pro":
+			strategy = "gemini3.1-pro-only"
+		case "series":
+			strategy = "gemini3.1-series-only"
+		case "3", "gemini3":
+			strategy = "gemini3-first"
+		case "3.1", "gemini3.1":
+			strategy = "gemini3.1-series-only"
+		}
+
+		// Validate strategy
+		validStrategies := []string{"conservative", "gemini3-first", "gemini3.1-pro-only", "gemini3.1-series-only", "custom"}
+		isValid := false
+		for _, s := range validStrategies {
+			if s == strategy {
+				isValid = true
+				break
+			}
+		}
+		if !isValid {
+			ui.Error(i18n.T("strategy_invalid")+": %s", strategy)
+			return
+		}
+
+		cfg.AutoSwitch.Strategy = strategy
 		_ = config.Save(cfg)
-		ui.Success("Strategy updated to: %s", args[0])
+		ui.Success(i18n.T("strategy_updated")+": %s", strategy)
 		return
 	}
 
-	fmt.Printf("Current Strategy: %s\n", cfg.AutoSwitch.Strategy)
-	fmt.Println("Available Strategies:")
-	fmt.Println("  1. conservative")
-	fmt.Println("  2. gemini3-first")
-	fmt.Println("  3. gemini3.1-pro-only")
-	fmt.Println("  4. gemini3.1-series-only")
-	fmt.Println("  5. custom")
-	fmt.Printf("\nEnter choice [1-5]: ")
-	
+	fmt.Printf("%s: %s\n", i18n.T("strategy"), cfg.AutoSwitch.Strategy)
+	fmt.Printf("%s:\n", i18n.T("select_strategy"))
+	fmt.Printf("  1. conservative      - %s\n", i18n.T("strategy_desc_conservative"))
+	fmt.Printf("  2. gemini3-first    - %s\n", i18n.T("strategy_desc_gemini3_first"))
+	fmt.Printf("  3. gemini3.1-pro-only - %s\n", i18n.T("strategy_desc_gemini31_pro_only"))
+	fmt.Printf("  4. gemini3.1-series-only - %s\n", i18n.T("strategy_desc_gemini31_series"))
+	fmt.Printf("  5. custom          - %s\n", i18n.T("strategy_desc_custom"))
+	fmt.Println()
+	fmt.Printf("\n%s: ", i18n.T("enter_choice"))
+
 	var choice string
 	fmt.Scanln(&choice)
-	
+
 	m := map[string]string{
 		"1": "conservative",
 		"2": "gemini3-first",
@@ -185,18 +271,19 @@ func handleStrategy(cfg *config.Config, args []string) {
 		"4": "gemini3.1-series-only",
 		"5": "custom",
 	}
-	
+
 	if val, ok := m[choice]; ok {
 		cfg.AutoSwitch.Strategy = val
-		_ = config.Save(cfg)
-		ui.Success("Strategy set to: %s", val)
+	} else {
+		cfg.AutoSwitch.Strategy = choice
 	}
+
+	_ = config.Save(cfg)
+	ui.Success(i18n.T("strategy_updated")+": %s", cfg.AutoSwitch.Strategy)
 }
 
 func handleConfig(cfg *config.Config, args []string) {
-	// Simple config viewer/setter
 	if len(args) >= 2 {
-		// e.g. gcam config threshold 20
 		key := args[0]
 		val := args[1]
 		switch key {
@@ -204,9 +291,13 @@ func handleConfig(cfg *config.Config, args []string) {
 			fmt.Sscanf(val, "%f", &cfg.AutoSwitch.Threshold)
 		case "enabled":
 			cfg.AutoSwitch.Enabled = (val == "true")
+		case "language", "lang":
+			cfg.Language = val
+		case "models":
+			cfg.AutoSwitch.ModelsToCheck = strings.Split(val, ",")
 		}
 		_ = config.Save(cfg)
-		ui.Success("Config updated")
+		ui.Success(i18n.T("updated"))
 	} else {
 		data, _ := json.MarshalIndent(cfg, "", "  ")
 		fmt.Println(string(data))
@@ -214,15 +305,17 @@ func handleConfig(cfg *config.Config, args []string) {
 }
 
 func listStatus() {
-	config.InitPaths() // Ensure paths are fresh
-	fmt.Printf("Debug: GeminiDir = %s\n", config.GeminiDir)
+	config.InitPaths()
 	profiles, _ := auth.GetProfiles()
 	accs, _ := config.LoadAccounts()
 
-	ui.Heading("Gemini CLI Account Manager")
-	fmt.Printf("%sActive Account:%s %s\n", ui.Bold, ui.Reset, accs.Active)
+	ui.Heading(i18n.T("title"))
+	fmt.Printf("%s%s:%s %s\n", ui.Bold, i18n.T("active_account"), ui.Reset, accs.Active)
 	
-	fmt.Printf("\n%sAccounts in Pool:%s\n", ui.Bold, ui.Reset)
+	fmt.Printf("\n%s%s:%s\n", ui.Bold, i18n.T("accounts"), ui.Reset)
+	if len(profiles) == 0 {
+		fmt.Printf("  %s(%s)%s\n", ui.Yellow, i18n.T("no_profiles"), ui.Reset)
+	}
 	for i, p := range profiles {
 		marker := "[ ]"
 		if p == accs.Active {
@@ -234,10 +327,10 @@ func listStatus() {
 }
 
 func showQuota(cfg *config.Config) {
-	ui.Info("Fetching quota information...")
+	ui.Info(i18n.T("fetching_quota"))
 	buckets, _, reason, err := quota.CheckQuota(cfg)
 	if err != nil {
-		ui.Error("Failed to get quota: %v", err)
+		ui.Error(i18n.T("quota_check_failed"), err)
 		return
 	}
 

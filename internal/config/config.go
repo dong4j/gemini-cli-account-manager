@@ -48,15 +48,16 @@ type OAuthClient struct {
 }
 
 type AutoSwitch struct {
-	Enabled            bool    `json:"enabled"`
-	Strategy           string  `json:"strategy"`
-	ModelPattern       string  `json:"model_pattern"`
-	CustomModelPattern string  `json:"custom_model_pattern"`
-	Threshold          float64 `json:"threshold"`
-	MaxRetries         int     `json:"max_retries"`
-	NotifyOnSwitch     bool    `json:"notify_on_switch"`
-	AutoRestart        bool    `json:"auto_restart"`
-	CacheMinutes       int     `json:"cache_minutes"`
+	Enabled            bool     `json:"enabled"`
+	Strategy           string   `json:"strategy"`
+	ModelPattern       string   `json:"model_pattern"`
+	CustomModelPattern string   `json:"custom_model_pattern"`
+	ModelsToCheck      []string `json:"models_to_check"` // Specific models to monitor
+	Threshold          float64  `json:"threshold"`
+	MaxRetries         int      `json:"max_retries"`
+	NotifyOnSwitch     bool     `json:"notify_on_switch"`
+	AutoRestart        bool     `json:"auto_restart"`
+	CacheMinutes       int      `json:"cache_minutes"`
 }
 
 // DefaultConfig provides the default settings
@@ -72,6 +73,7 @@ func DefaultConfig() Config {
 			Strategy:           "gemini3.1-series-only",
 			ModelPattern:       "gemini-3.1.*",
 			CustomModelPattern: "",
+			ModelsToCheck:      []string{"gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview"},
 			Threshold:          10.0,
 			MaxRetries:         3,
 			NotifyOnSwitch:     true,
