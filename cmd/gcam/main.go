@@ -16,7 +16,19 @@ import (
 	"gemini-cli-account-manager/internal/utils"
 )
 
+// 版本号（编译时通过 ldflags 注入）
+var version = "dev"
+
 func main() {
+	// 处理版本参数
+	if len(os.Args) == 2 {
+		arg := strings.ToLower(os.Args[1])
+		if arg == "-v" || arg == "--version" {
+			fmt.Println("gcam version", version)
+			return
+		}
+	}
+
 	if len(os.Args) < 2 {
 		listStatus()
 		return
