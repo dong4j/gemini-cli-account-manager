@@ -1,18 +1,18 @@
 #!/bin/bash
 # ==============================================================================
-# GCAM 一键安装脚本 (macOS / Linux)
-# 使用方式: curl -sSL https://gcam.dong4j.site/install.sh | bash
-# 或指定版本: curl -sSL https://gcam.dong4j.site/install.sh | bash -s -- v1.1.0
+# GCAM One-Click Installer (macOS / Linux)
+# Usage: curl -sSL https://gcam.dong4j.site/install.sh | bash
+# Or specify version: curl -sSL https://gcam.dong4j.site/install.sh | bash -s -- v1.1.0
 # ==============================================================================
 
 set -e
 
-# 配置
+# Configuration
 REPO="dong4j/gemini-cli-account-manager"
 BINARY_NAME="gcam"
 INSTALL_DIR="${HOME}/.local/bin"
 
-# 颜色输出
+# Color output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -35,7 +35,7 @@ error() {
     echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
-# 检测操作系统和架构
+# Detect OS and architecture
 detect_os() {
     OS="$(uname -s)"
     ARCH="$(uname -m)"
@@ -48,13 +48,13 @@ detect_os() {
             OS="linux"
             ;;
         *)
-            error "不支持的操作系统: $OS"
-            error "Windows 用户请使用 install.bat: https://gcam.dong4j.site/install.bat"
+            error "Unsupported OS: $OS"
+            error "Windows users please use install.bat: https://gcam.dong4j.site/install.bat"
             exit 1
             ;;
     esac
 
-    # 转换架构名称
+    # Normalize architecture names
     case "$ARCH" in
         x86_64|amd64)
             ARCH="amd64"
@@ -63,118 +63,118 @@ detect_os() {
             ARCH="arm64"
             ;;
         *)
-            error "不支持的架构: $ARCH"
+            error "Unsupported architecture: $ARCH"
             exit 1
             ;;
     esac
 
-    info "检测到平台: ${OS}-${ARCH}"
+    info "Detected platform: ${OS}-${ARCH}"
 }
 
-# 获取最新版本号
+# Get latest version
 get_latest_version() {
     if [ -n "$1" ]; then
         VERSION="$1"
         return
     fi
 
-    info "获取最新版本号..."
+    info "Fetching latest version..."
     VERSION=$(curl -sSL "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name"' | sed -E 's/.*"tag_name": "([^"]+)".*/\1/')
 
     if [ -z "$VERSION" ]; then
-        error "无法获取最新版本，请检查网络连接或指定版本号"
+        error "Failed to fetch latest version. Please check your network or specify a version."
         exit 1
     fi
 
-    info "最新版本: $VERSION"
+    info "Latest version: $VERSION"
 }
 
-# 下载二进制文件（只返回文件路径，不输出其他内容）
+# Download binary (returns file path only)
 download_binary() {
     local version="$1"
     local filename="${BINARY_NAME}-${OS}-${ARCH}"
     local download_url="https://github.com/${REPO}/releases/download/${version}/${filename}"
 
-    info "下载地址: $download_url"
+    info "Download URL: $download_url"
 
-    # 创建临时文件
+    # Create temp file
     local tmpfile="/tmp/gcam_install_${filename}"
     rm -f "$tmpfile"
 
-    info "正在下载..."
+    info "Downloading..."
     if ! curl -sSL -o "$tmpfile" "$download_url"; then
-        error "下载失败，请检查版本号是否正确: $version"
+        error "Download failed. Please verify the version: $version"
         rm -f "$tmpfile"
         exit 1
     fi
 
-    # 验证文件
+    # Verify file
     if [ ! -s "$tmpfile" ]; then
-        error "下载文件为空或损坏"
+        error "Downloaded file is empty or corrupted"
         rm -f "$tmpfile"
         exit 1
     fi
 
-    # 检查文件大小
+    # Check file size
     local size=$(wc -c < "$tmpfile" 2>/dev/null || echo "0")
     if [ "$size" -lt 1000 ]; then
         if file "$tmpfile" 2>/dev/null | grep -q "HTML"; then
-            error "下载文件似乎是 HTML 错误页面，版本可能不存在: $version"
+            error "Downloaded file appears to be an HTML error page. Version may not exist: $version"
             rm -f "$tmpfile"
             exit 1
         fi
     fi
 
-    # 只输出文件路径到 stdout（供变量捕获）
+    # Return file path to stdout
     echo "$tmpfile"
 }
 
-# 安装到目标目录
+# Install binary to target directory
 install_binary() {
     local src="$1"
 
-    # 创建安装目录
+    # Create install directory
     if [ ! -d "$INSTALL_DIR" ]; then
-        info "创建安装目录: $INSTALL_DIR"
+        info "Creating install directory: $INSTALL_DIR"
         mkdir -p "$INSTALL_DIR"
     fi
 
     local target="${INSTALL_DIR}/${BINARY_NAME}"
 
-    # 移动文件
-    info "安装到: $target"
+    # Move file
+    info "Installing to: $target"
     mv "$src" "$target"
     chmod +x "$target"
 
-    # 清理临时文件
+    # Cleanup temp file
     rm -f "$src"
 
-    success "安装完成!"
+    success "Installation complete!"
     echo
     echo "=========================================="
-    echo "  GCAM 已成功安装到:"
+    echo "  GCAM installed to:"
     echo "  $target"
     echo "=========================================="
     echo
 }
 
-# 检查并提示配置 PATH
+# Check and prompt for PATH configuration
 check_path() {
-    # 检查 PATH 是否已包含安装目录
+    # Check if PATH already contains install directory
     if echo ":$PATH:" | grep -q ":$INSTALL_DIR:"; then
-        info "PATH 配置正确，无需额外设置"
+        info "PATH is correctly configured"
         return 0
     fi
 
-    warn "需要将 $INSTALL_DIR 添加到 PATH"
+    warn "Need to add $INSTALL_DIR to PATH"
     echo
-    echo "请在您的 shell 配置文件中添加以下内容:"
+    echo "Add the following to your shell configuration file:"
     echo
     echo -e "  ${GREEN}# GCAM${NC}"
     echo -e "  export PATH=\"\$HOME/.local/bin:\$PATH\""
     echo
 
-    # 检测 shell 类型
+    # Detect shell type
     local shell_config=""
     case "$(basename "$SHELL")" in
         zsh)
@@ -195,69 +195,69 @@ check_path() {
             ;;
     esac
 
-    echo "配置文件: $shell_config"
+    echo "Config file: $shell_config"
     echo
-    echo "添加后，运行以下命令使其生效:"
+    echo "After adding, run the following command to apply:"
     echo
     echo -e "  ${GREEN}source $shell_config${NC}"
     echo
-    echo "或者重新打开终端。"
+    echo "Or restart your terminal."
 }
 
-# 显示使用指南
+# Show usage guide
 show_usage() {
     echo
     echo "=========================================="
-    echo "  常用命令"
+    echo "  Common Commands"
     echo "=========================================="
     echo
-    echo -e "  ${GREEN}gcam${NC}               查看账号列表"
-    echo -e "  ${GREEN}gcam 1${NC}            切换到 1 号账号"
-    echo -e "  ${GREEN}gcam next${NC}          切换到下一个账号"
-    echo -e "  ${GREEN}gcam quota${NC}         查看配额使用情况"
-    echo -e "  ${GREEN}gcam pool login${NC}   添加新账号"
-    echo -e "  ${GREEN}gcam menu${NC}          打开交互式菜单"
+    echo -e "  ${GREEN}gcam${NC}               List accounts"
+    echo -e "  ${GREEN}gcam 1${NC}            Switch to account #1"
+    echo -e "  ${GREEN}gcam next${NC}          Switch to next account"
+    echo -e "  ${GREEN}gcam quota${NC}         Check quota usage"
+    echo -e "  ${GREEN}gcam pool login${NC}   Add new account"
+    echo -e "  ${GREEN}gcam menu${NC}         Open interactive menu"
     echo
-    echo "  安装钩子（启用 /gcam 命令）:"
+    echo "  Install hooks (enable /gcam command):"
     echo -e "  ${GREEN}gcam install${NC}"
     echo
-    echo "  查看帮助:"
+    echo "  View help:"
     echo -e "  ${GREEN}gcam --help${NC}"
     echo
     echo "=========================================="
     echo
-    echo -e "  文档: ${BLUE}https://gcam.dong4j.site${NC}"
+    echo -e "  Docs: ${BLUE}https://gcam.dong4j.site${NC}"
     echo -e "  GitHub: ${BLUE}https://github.com/${REPO}${NC}"
     echo
 }
 
-# 主函数
+# Main function
 main() {
     echo
     echo "=========================================="
-    echo "  GCAM 一键安装脚本"
+    echo "  GCAM One-Click Installer"
     echo "  https://github.com/${REPO}"
     echo "=========================================="
     echo
 
-    # 检测系统
+    # Detect OS
     detect_os
 
-    # 获取版本
+    # Get version
     get_latest_version "$1"
 
-    # 下载（只捕获文件路径）
+    # Download
     BINARY_PATH=$(download_binary "$VERSION")
 
-    # 安装
+    # Install
     install_binary "$BINARY_PATH"
 
-    # 检查 PATH
+    # Check PATH
     check_path
 
-    # 显示使用指南
+    # Show usage guide
     show_usage
 }
 
-# 运行
+# Run
 main "$@"
